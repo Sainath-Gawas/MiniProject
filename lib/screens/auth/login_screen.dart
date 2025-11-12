@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../screens/auth/signup_screen.dart';
-import '../../screens/auth/reset_password_screen.dart';
+import '../../services/auth_service.dart';
 import '../home/home_screen.dart';
-import '../admin/admin_panel.dart';
+import '../auth/signup_screen.dart';
+import '../auth/reset_password_screen.dart';
+import '../admin/admin_panel.dart'; // Import AdminPanel
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,14 +15,26 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final AuthService _auth = AuthService();
 
   bool _loading = false;
   String? _error;
 
   // ---------------- EMAIL LOGIN ----------------
-  Future<void> _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      setState(() => _error = "Enter email and password");
+  Future<void> _loginEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    // Email validation
+    if (!AuthService.isValidEmail(email)) {
+      setState(() => _error = "Enter a valid email");
+      return;
+    }
+
+    // Password validation (allow admin password < 6)
+    if (email.toLowerCase() != 'vpg@gmail.com' &&
+        !AuthService.isValidPassword(password)) {
+      setState(() => _error = "Password must be at least 6 characters");
       return;
     }
 
@@ -32,34 +44,46 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Admin login simulation
-      if ((_emailController.text == 'studentadmin@edu.com' ||
-              _emailController.text == 'vpg@gmail.com') &&
-          _passwordController.text == '1234') {
-        setState(() => _loading = false);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminPanel()),
-        );
-        return;
-      }
-
-      // Normal user login
-      final userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
+      // ---------- Admin login check ----------
+      if (email.toLowerCase() == 'vpg@gmail.com' && password == '1234') {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminPanel()),
           );
+        }
+      } else {
+        // ---------- Normal user login ----------
+        final user = await _auth.signInWithEmail(email, password);
+        if (user != null && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
-      if (userCredential.user != null) {
-        setState(() => _loading = false);
+  // ---------------- GOOGLE LOGIN ----------------
+  Future<void> _loginGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final user = await _auth.signInWithGoogle();
+      if (user != null && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -68,39 +92,32 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ---------------- GUEST LOGIN ----------------
-  Future<void> _continueAsGuest() async {
-    setState(() => _loading = true);
+  Future<void> _loginGuest() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     try {
-      await FirebaseAuth.instance.signInAnonymously();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message);
+      final user = await _auth.signInAnonymously();
+      if (user != null && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } catch (e) {
+      setState(() => _error = e.toString());
     } finally {
       setState(() => _loading = false);
     }
   }
 
-  Widget _sectionTitle(String text, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF6A1B9A)),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -133,9 +150,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // -------- EMAIL LOGIN --------
-                  _sectionTitle("Login with Email", Icons.email_outlined),
-                  const SizedBox(height: 10),
+                  const Text(
+                    "Login with Email",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   TextField(
                     controller: _emailController,
                     decoration: const InputDecoration(
@@ -154,7 +178,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
                   ElevatedButton(
+                    onPressed: _loading ? null : _loginEmail,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: themeColor,
                       foregroundColor: Colors.white,
@@ -163,49 +189,48 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: _loading ? null : _login,
                     child: _loading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text('Login'),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+
+                  // ---------- Sign Up ----------
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      const Text("Don't have an account?"),
                       TextButton(
                         onPressed: _loading
                             ? null
-                            : () => Navigator.push(
+                            : () => Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => const SignUpScreen(),
                                 ),
                               ),
-                        child: const Text("Create account"),
-                      ),
-                      const Text("|"),
-                      TextButton(
-                        onPressed: _loading
-                            ? null
-                            : () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ResetPasswordScreen(),
-                                ),
-                              ),
-                        child: const Text("Forgot password?"),
+                        child: const Text("Sign Up"),
                       ),
                     ],
                   ),
 
+                  // ---------- Forgot Password ----------
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ResetPasswordScreen(),
+                            ),
+                          ),
+                    child: const Text("Forgot Password?"),
+                  ),
+
                   const Divider(height: 40, thickness: 1),
 
-                  // -------- GUEST LOGIN --------
-                  _sectionTitle("Try without account", Icons.person_outline),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.person),
-                    label: const Text('Continue as Guest'),
+                  OutlinedButton(
+                    onPressed: _loading ? null : _loginGoogle,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: themeColor),
@@ -214,15 +239,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: _loading ? null : _continueAsGuest,
+                    child: const Text('Sign in with Google'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  OutlinedButton(
+                    onPressed: _loading ? null : _loginGuest,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: themeColor),
+                      foregroundColor: themeColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Continue as Guest'),
                   ),
 
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Text(
                       _error!,
-                      style: const TextStyle(color: Colors.red),
                       textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
                     ),
                   ],
                 ],

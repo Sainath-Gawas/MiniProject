@@ -2,7 +2,7 @@ name: edutrack
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -23,10 +23,10 @@ dependencies:
 
   # --- Firebase Dependencies (FIXED to stable Flutter versions) ---
   # These versions are highly stable and should resolve dependency conflicts.
-  firebase_core: ^2.27.0  # Stable Flutter Firebase Core
-  firebase_auth: ^4.18.0  # Stable Flutter Firebase Auth
+  firebase_core: ^2.27.0 # Stable Flutter Firebase Core
+  firebase_auth: ^4.18.0 # Stable Flutter Firebase Auth
   cloud_firestore: ^4.16.0 # Stable Flutter Cloud Firestore (Needed for AuthGate)
-  google_sign_in: ^7.2.0
+  google_sign_in: ^6.2.1
   fl_chart: ^1.1.1
 
 dev_dependencies:
@@ -45,7 +45,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
+  assets:
+    - asset/assets/google_logo.jpg
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   # ... rest of the flutter configuration

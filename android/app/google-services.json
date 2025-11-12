@@ -12,7 +12,20 @@
           "package_name": "com.example.edutrack"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "999810256891-ji24d3909mv68q1amur77imqroip7km3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.edutrack",
+            "certificate_hash": "c3ec958f0e7d5d8e609b26ea147004d2519acbbc"
+          }
+        },
+        {
+          "client_id": "999810256891-bj0gsci2p3lot0lcu9f89oee8h37lqr4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAln0OfNtxuuXoHtJfeflTYqAZu_ytTeSo"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "999810256891-bj0gsci2p3lot0lcu9f89oee8h37lqr4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "999810256891-ohj121eei7ol94s6kc3h7c5nbgfsk83d.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.edutrack"
+              }
+            }
+          ]
         }
       }
     }
