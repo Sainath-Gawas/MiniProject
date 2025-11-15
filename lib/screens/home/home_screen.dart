@@ -4,8 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../semester/semester_dashboard_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/attendance_reminder_service.dart';
 import '../attendance/attendance_notification_handler.dart';
+import '../settings/settings_screen.dart';
+import '../premium/upgrade_premium_screen.dart';
+import '../chatbot/chatbot_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final AuthService _authService = AuthService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirestoreService _firestoreService = FirestoreService();
 
   List<String> firestoreSemesters = [];
   List<String> guestSemesters = [];
@@ -112,6 +117,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkPendingAttendance() async {
     if (isGuest || !mounted || firestoreSemesters.isEmpty) return;
 
+    // Check if user is premium (automatic popup is premium-only)
+    final userDoc = await _firestore
+        .collection('users')
+        .doc(currentUser!.uid)
+        .get();
+    final isPremium = userDoc.data()?['isPremium'] ?? userDoc.data()?['premium'] ?? false;
+    
+    if (!isPremium) return; // Only premium users get automatic popup
+
     final reminderService = AttendanceReminderService();
     final handler = AttendanceNotificationHandler();
 
@@ -160,6 +174,16 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text("Hello, $userName 👋"),
         actions: [
+          if (!isGuest)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+              },
+            ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
@@ -201,6 +225,105 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text("Add Semester"),
               onTap: _addSemester,
             ),
+            if (!isGuest) ...[
+              const Divider(),
+              StreamBuilder<bool>(
+                stream: _firestoreService.getUserPremiumStatus(currentUser!.uid),
+                builder: (context, snapshot) {
+                  final isPremium = snapshot.data ?? false;
+                  if (!isPremium) {
+                    return ListTile(
+                      leading: const Icon(Icons.star, color: Colors.amber),
+                      title: const Text("Upgrade to Premium"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const UpgradePremiumScreen(),
+                          ),
+                        );
+                      },
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_outline),
+                title: const Text("Chatbot"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChatbotScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text("Settings"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                },
+              ),
+            ],
+            if (isGuest) ...[
+              const Divider(),
+              Card(
+                color: Colors.amber.shade50,
+                margin: const EdgeInsets.all(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.amber),
+                          SizedBox(width: 8),
+                          Text(
+                            "Sign up to save your data permanently",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Your data will be lost if you don't sign up. Create an account to keep your progress safe.",
+                        style: TextStyle(fontSize: 12, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF283593),
+                          ),
+                          child: const Text("Sign Up Now"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -225,17 +348,49 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (isGuest)
                       Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LoginScreen(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            "Sign up to save your progress permanently",
+                        child: Card(
+                          color: Colors.amber.shade50,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.info_outline, color: Colors.amber),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Sign up to save your data permanently",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "Your data will be lost if you don't sign up. Create an account to keep your progress safe.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const LoginScreen(),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF283593),
+                                  ),
+                                  child: const Text("Sign Up Now"),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

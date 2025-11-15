@@ -25,6 +25,8 @@ class FirestoreService {
       'phone': phone ?? '',
       'role': 'user',
       'premium': false,
+      'isPremium': false,
+      'uiMode': 'light',
       'semesters': [],
       'semester': null,
       'createdAt': FieldValue.serverTimestamp(),
@@ -51,8 +53,52 @@ class FirestoreService {
 
     await _db.collection('users').doc(uid).update({
       'premium': premium,
+      'isPremium': premium,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> upgradeToPremium(String uid) async {
+    if (_isGuest(uid)) return;
+
+    await _db.collection('users').doc(uid).update({
+      'premium': true,
+      'isPremium': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateUiMode(String uid, String uiMode) async {
+    if (_isGuest(uid)) return;
+
+    await _db.collection('users').doc(uid).update({
+      'uiMode': uiMode,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<String> getUserUiMode(String uid) {
+    if (_isGuest(uid)) {
+      return Stream.value('light');
+    }
+
+    return _db
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((doc) => doc.data()?['uiMode'] ?? 'light');
+  }
+
+  Stream<bool> getUserPremiumStatus(String uid) {
+    if (_isGuest(uid)) {
+      return Stream.value(false);
+    }
+
+    return _db
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((doc) => doc.data()?['isPremium'] ?? doc.data()?['premium'] ?? false);
   }
 
   Future<void> updateNotificationSettings(String uid, bool enabled) async {

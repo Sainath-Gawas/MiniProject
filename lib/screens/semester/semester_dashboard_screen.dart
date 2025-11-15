@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'notes_screen.dart';
@@ -13,6 +14,7 @@ import '/models/exam_model.dart';
 import '/models/timetable_model.dart';
 import '/models/attendance_model.dart';
 import '/services/firestore_service.dart';
+import '../../screens/premium/upgrade_premium_screen.dart';
 
 class SemesterDashboardScreen extends StatefulWidget {
   final String semesterName;
@@ -65,9 +67,18 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
     });
   }
 
-  /// Check for classes that just ended and show attendance pop-up
+  /// Check for classes that just ended and show attendance pop-up (Premium only)
   Future<void> _checkForEndedClasses() async {
     if (!mounted || uid == 'guest_user') return;
+
+    // Check if user is premium
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final isPremium = userDoc.data()?['isPremium'] ?? userDoc.data()?['premium'] ?? false;
+    
+    if (!isPremium) return; // Only premium users get automatic popup
 
     try {
       final now = DateTime.now();
@@ -736,32 +747,271 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
           );
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildQuoteCard(),
-              const SizedBox(height: 20),
-              const Text(
-                "📊 Attendance Summary",
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF283593),
-                ),
+        return StreamBuilder<bool>(
+          stream: _firestoreService.getUserPremiumStatus(uid),
+          builder: (context, premiumSnapshot) {
+            final isPremium = premiumSnapshot.data ?? false;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildQuoteCard(),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "📊 Attendance Summary",
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF283593),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...subjects
+                      .map((subject) => _buildAttendanceCard(subject))
+                      .toList(),
+                  const SizedBox(height: 20),
+                  // Marks chart - use a custom widget that handles multiple streams
+                  _buildMarksChartSection(subjects),
+                  if (!isPremium) ...[
+                    const SizedBox(height: 20),
+                    _buildPremiumCTACard(),
+                  ],
+                  if (isPremium) ...[
+                    const SizedBox(height: 20),
+                    _buildPremiumAnalyticsSection(subjects),
+                  ],
+                ],
               ),
-              const SizedBox(height: 12),
-              ...subjects
-                  .map((subject) => _buildAttendanceCard(subject))
-                  .toList(),
-              const SizedBox(height: 20),
-              // Marks chart - use a custom widget that handles multiple streams
-              _buildMarksChartSection(subjects),
-            ],
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildPremiumCTACard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF283593), Color(0xFF00B0FF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.star, color: Colors.amber, size: 28),
+                SizedBox(width: 8),
+                Text(
+                  "Unlock full analytics with Student Sathi Premium",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "Get access to:",
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            _buildFeatureItem("GPA trend across semesters"),
+            _buildFeatureItem("Subject-wise marks analysis"),
+            _buildFeatureItem("Internal vs external distribution charts"),
+            _buildFeatureItem("Attendance heatmap"),
+            _buildFeatureItem("Smooth animations & rich UI"),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UpgradePremiumScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF283593),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "Upgrade",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumAnalyticsSection(List<Subject> subjects) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "⭐ Premium Analytics",
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF283593),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildGPATrendCard(),
+        const SizedBox(height: 16),
+        _buildSubjectWiseAnalysisCard(subjects),
+        const SizedBox(height: 16),
+        _buildInternalExternalChart(subjects),
+      ],
+    );
+  }
+
+  Widget _buildGPATrendCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📈 GPA Trend",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF283593),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: Center(
+                child: Text(
+                  "GPA trend visualization\n(Coming soon)",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubjectWiseAnalysisCard(List<Subject> subjects) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📊 Subject-wise Analysis",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF283593),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...subjects.take(3).map((subject) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: Text(subject.name)),
+                      Text(
+                        "${subject.currentAttendancePercentage.toStringAsFixed(1)}%",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                )),
+            if (subjects.length > 3)
+              Text(
+                "+ ${subjects.length - 3} more subjects",
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInternalExternalChart(List<Subject> subjects) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "🥧 Internal vs External Distribution",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF283593),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: Center(
+                child: Text(
+                  "Pie chart visualization\n(Coming soon)",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

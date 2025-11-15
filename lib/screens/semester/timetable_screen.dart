@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '/models/timetable_model.dart';
 import '/models/attendance_model.dart';
 import '/services/firestore_service.dart';
@@ -42,9 +43,19 @@ class _TimetableScreenState extends State<TimetableScreen> {
     });
   }
 
-  // ------------------- AUTOMATIC ATTENDANCE PROMPT -------------------
+  // ------------------- AUTOMATIC ATTENDANCE PROMPT (Premium only) -------------------
   Future<void> _promptPastClassesAttendance() async {
     await Future.delayed(const Duration(milliseconds: 500));
+
+    // Check if user is premium
+    if (uid == 'guest_user') return;
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    final isPremium = userDoc.data()?['isPremium'] ?? userDoc.data()?['premium'] ?? false;
+    
+    if (!isPremium) return; // Only premium users get automatic popup
 
     // Fetch all timetable entries
     final allEntries = await _firestoreService.getTimetableOnce(
