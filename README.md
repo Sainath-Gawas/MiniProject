@@ -69,4 +69,8 @@
 - Admin-specific access for managing app data
 - Allows admins to toggle users as Free or VIP
 
-### Output 
+### Demo videos
+
+- Full Demo : https://drive.google.com/file/d/1q23BBs6XZ1u2eNKxXsMlaHeRAk0LmDHD/view?usp=sharing
+- New account creation : https://drive.google.com/file/d/1lhHFxWJdyiokypMwA4qwAv6TfydpsaGH/view?usp=sharing
+- Guest login: https://drive.google.com/file/d/1gG8MNI5JfOYsMgKA94uxsYyprhb-8i30/view?usp=sharing
