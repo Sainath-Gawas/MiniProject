@@ -55,3 +55,4 @@ yarn-error.log
 .env
 
 lib/services/sathi_ai_service.dart
+.vscode/

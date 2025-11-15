@@ -69,6 +69,4 @@
 - Admin-specific access for managing app data
 - Allows admins to toggle users as Free or VIP
 
-### Output Screenshots
-1) Home screen
-   
+### Output 
