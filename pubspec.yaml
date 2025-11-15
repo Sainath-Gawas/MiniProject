@@ -28,6 +28,9 @@ dependencies:
   cloud_firestore: ^4.16.0 # Stable Flutter Cloud Firestore (Needed for AuthGate)
   google_sign_in: ^6.2.1
   fl_chart: ^1.1.1
+  intl: ^0.19.0
+  http: ^1.2.2
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

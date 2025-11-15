@@ -7,6 +7,7 @@ class AppUser {
   final bool premium;
   final String? semester; // current selected semester
   final List<String> semesters; // list of available semesters
+  final bool attendanceNotificationsEnabled;
 
   AppUser({
     required this.uid,
@@ -17,6 +18,7 @@ class AppUser {
     required this.premium,
     this.semester,
     this.semesters = const [],
+    this.attendanceNotificationsEnabled = true,
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
@@ -29,6 +31,8 @@ class AppUser {
       premium: data['premium'] ?? false,
       semester: data['semester'],
       semesters: List<String>.from(data['semesters'] ?? []),
+      attendanceNotificationsEnabled:
+          data['attendanceNotificationsEnabled'] ?? true,
     );
   }
 
@@ -41,6 +45,7 @@ class AppUser {
       'premium': premium,
       'semester': semester,
       'semesters': semesters,
+      'attendanceNotificationsEnabled': attendanceNotificationsEnabled,
     };
   }
 }

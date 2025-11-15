@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:edutrack/screens/semester/semester_dashboard_screen.dart';
-import 'package:edutrack/screens/auth/login_screen.dart';
-import 'package:edutrack/services/auth_service.dart';
+import '../semester/semester_dashboard_screen.dart';
+import '../auth/login_screen.dart';
+import '../../services/auth_service.dart';
+import '../../services/attendance_reminder_service.dart';
+import '../attendance/attendance_notification_handler.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,6 +53,16 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         firestoreSemesters = snapshot.docs.map((e) => e.id).toList();
       });
+
+      // Check for pending attendance after data is loaded
+      // Add a small delay to ensure UI is ready
+      if (mounted) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            _checkPendingAttendance();
+          }
+        });
+      }
     } catch (e) {
       print("Error loading user data: $e");
     }
@@ -97,6 +109,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _checkPendingAttendance() async {
+    if (isGuest || !mounted || firestoreSemesters.isEmpty) return;
+
+    final reminderService = AttendanceReminderService();
+    final handler = AttendanceNotificationHandler();
+
+    // Check each semester for pending classes
+    for (var semester in firestoreSemesters) {
+      if (!mounted) break; // Check if still mounted
+
+      final pendingClasses = await reminderService.getPendingAttendanceClasses(
+        semester,
+      );
+
+      if (pendingClasses.isNotEmpty && mounted) {
+        // Show dialog for first pending class
+        final firstClass = pendingClasses.first;
+        await handler.handleNotificationResponse(
+          context: context,
+          semester: semester,
+          subject: firstClass.subject,
+          time: firstClass.startTime,
+        );
+        // After handling one, wait a bit and check for more
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _checkPendingAttendance(); // Recursively check for more
+        }
+        break; // Only process one semester at a time
+      }
+    }
+  }
+
   Future<void> _logout() async {
     await _authService.signOut();
     if (mounted) {
@@ -129,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               child: Text(
-                "EduTrack",
+                "Student",
                 style: Theme.of(
                   context,
                 ).textTheme.headlineSmall?.copyWith(color: Colors.white),

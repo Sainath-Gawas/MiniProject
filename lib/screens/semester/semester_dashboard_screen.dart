@@ -1,9 +1,23 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart'; // for dashboard charts
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:fl_chart/fl_chart.dart';
+import 'notes_screen.dart';
+import 'attendance_screen.dart';
+import 'timetable_screen.dart';
+import 'marks_screen.dart';
+import '/models/subject_model.dart';
+import '/models/exam_model.dart';
+import '/models/timetable_model.dart';
+import '/models/attendance_model.dart';
+import '/services/firestore_service.dart';
 
 class SemesterDashboardScreen extends StatefulWidget {
   final String semesterName;
-  const SemesterDashboardScreen({super.key, required this.semesterName});
+  const SemesterDashboardScreen({Key? key, required this.semesterName})
+    : super(key: key);
 
   @override
   State<SemesterDashboardScreen> createState() =>
@@ -12,186 +26,793 @@ class SemesterDashboardScreen extends StatefulWidget {
 
 class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
   int _selectedIndex = 0;
+  String _quote = "Loading inspirational quote...";
+  String _author = "";
+  bool _loadingQuote = true;
 
-  final List<Map<String, dynamic>> _tabs = [
-    {"icon": Icons.dashboard, "label": "Dashboard"},
-    {"icon": Icons.check_circle_outline, "label": "Attendance"},
-    {"icon": Icons.grade, "label": "Marks"},
-    {"icon": Icons.note, "label": "Notes"},
-    {"icon": Icons.calendar_month, "label": "Timetable"},
-  ];
+  final FirestoreService _firestoreService = FirestoreService();
+  final String uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
 
-  late final List<Widget> _pages;
+  Timer? _attendanceCheckTimer;
+  final Set<String> _processedClasses =
+      {}; // Track processed classes to prevent duplicates
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      const DashboardTab(),
-      const PlaceholderTab(label: "Attendance"),
-      const PlaceholderTab(label: "Marks"),
-      const PlaceholderTab(label: "Notes"),
-      const TimetableTab(),
-    ];
+    _fetchQuote();
+    _startAttendanceCheck();
+  }
+
+  @override
+  void dispose() {
+    _attendanceCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Start periodic check for classes that just ended
+  void _startAttendanceCheck() {
+    // Check every minute for classes that ended
+    _attendanceCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _checkForEndedClasses();
+    });
+
+    // Also check immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), () {
+        _checkForEndedClasses();
+      });
+    });
+  }
+
+  /// Check for classes that just ended and show attendance pop-up
+  Future<void> _checkForEndedClasses() async {
+    if (!mounted || uid == 'guest_user') return;
+
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Get current day name
+      final dayNames = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+      ];
+      final currentDay = dayNames[now.weekday - 1];
+
+      // Get timetable entries for today
+      final timetable = await _firestoreService.getTimetableOnce(
+        uid,
+        widget.semesterName,
+      );
+      final todayEntries = timetable.where((e) => e.day == currentDay).toList();
+
+      if (todayEntries.isEmpty) return;
+
+      // Get existing attendance for today
+      final existingAttendance = await _firestoreService.getAttendanceOnce(
+        uid,
+        widget.semesterName,
+      );
+      final todayAttendance = existingAttendance.where((att) {
+        return att.date.year == today.year &&
+            att.date.month == today.month &&
+            att.date.day == today.day;
+      }).toList();
+
+      final markedSubjects = todayAttendance.map((a) => a.subject).toSet();
+
+      // Check each timetable entry
+      for (var entry in todayEntries) {
+        // Skip if already marked today
+        if (markedSubjects.contains(entry.subject)) continue;
+
+        // Create a unique key for this class today
+        final classKey =
+            '${entry.subject}_${today.year}_${today.month}_${today.day}';
+
+        // Skip if already processed
+        if (_processedClasses.contains(classKey)) continue;
+
+        // Check if class just ended (within last 5 minutes)
+        final endTime = entry.getEndDateTime(forDate: now);
+        final minutesSinceEnd = now.difference(endTime).inMinutes;
+
+        // Show pop-up if class ended 0-5 minutes ago
+        // This gives a 5-minute window after class ends
+        if (minutesSinceEnd >= 0 && minutesSinceEnd <= 5) {
+          _processedClasses.add(classKey);
+          _showAttendanceDialog(entry, endTime);
+          break; // Only show one dialog at a time
+        }
+      }
+    } catch (e) {
+      print('Error checking for ended classes: $e');
+    }
+  }
+
+  /// Show attendance dialog for a class
+  Future<void> _showAttendanceDialog(
+    TimetableEntry entry,
+    DateTime classDate,
+  ) async {
+    if (!mounted) return;
+
+    final attended = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Mark attendance for ${entry.subject}?',
+          style: const TextStyle(
+            color: Color(0xFF283593),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Class ended at ${entry.endTime}',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Absent'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF283593),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Present'),
+          ),
+        ],
+      ),
+    );
+
+    if (attended == null) {
+      // User dismissed, remove from processed so it can be shown again
+      final today = DateTime.now();
+      final classKey =
+          '${entry.subject}_${today.year}_${today.month}_${today.day}';
+      _processedClasses.remove(classKey);
+      return;
+    }
+
+    // Create attendance record
+    final record = AttendanceRecord(
+      id: null,
+      date: classDate,
+      subject: entry.subject,
+      status: attended ? AttendanceStatus.present : AttendanceStatus.absent,
+    );
+
+    // Save to Firestore
+    await _firestoreService.addAttendanceRecord(
+      uid,
+      widget.semesterName,
+      record,
+    );
+
+    // Update Subject model attendance counts
+    await _firestoreService.updateSubjectAttendance(
+      uid,
+      widget.semesterName,
+      entry.subject,
+      classHappened: true,
+      attended: attended,
+      wasCancelled: false,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            attended
+                ? 'Attendance marked: Present ✓'
+                : 'Attendance marked: Absent',
+          ),
+          backgroundColor: attended ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _fetchQuote() async {
+    setState(() => _loadingQuote = true);
+    try {
+      final response = await http
+          .get(Uri.parse('https://type.fit/api/quotes'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        if (data.isNotEmpty) {
+          final randomQuote = (data..shuffle()).first;
+          final quoteText = randomQuote['text'] ?? "No quote available";
+          String authorText = randomQuote['author'] ?? "Unknown";
+
+          // Clean author name
+          authorText = authorText.replaceAll(', type.fit', '').trim();
+          if (authorText.isEmpty) authorText = "Unknown";
+
+          if (!mounted) return;
+          setState(() {
+            _quote = quoteText;
+            _author = authorText;
+            _loadingQuote = false;
+          });
+        } else {
+          _setFallbackQuote();
+        }
+      } else {
+        _setFallbackQuote();
+      }
+    } catch (e) {
+      print("Quote fetch error: $e");
+      _setFallbackQuote();
+    }
+  }
+
+  /// Set fallback quote when API fails
+  void _setFallbackQuote() {
+    if (!mounted) return;
+    setState(() {
+      _quote = "The only way to do great work is to love what you do.";
+      _author = "Steve Jobs";
+      _loadingQuote = false;
+    });
+  }
+
+  void _onTabTapped(int index) {
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => NotesScreen(semesterName: widget.semesterName),
+        ),
+      );
+    } else if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              AttendanceScreen(semesterName: widget.semesterName),
+        ),
+      );
+    } else if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MarksScreen(semesterName: widget.semesterName),
+        ),
+      );
+    } else if (index == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              TimetableScreen(semesterName: widget.semesterName),
+        ),
+      );
+    } else {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
+  Widget _buildQuoteCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "💬 Quote of the Day",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF283593),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Color(0xFF00B0FF)),
+                  onPressed: _fetchQuote,
+                  tooltip: 'Refresh quote',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _loadingQuote
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _quote,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontStyle: FontStyle.italic,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
+                      if (_author.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            "- $_author",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF616161),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceCard(Subject subject) {
+    final percentage = subject.currentAttendancePercentage;
+    final present = subject.classesAttended;
+    final absent = subject.classesMissed;
+    final total = subject.totalClassesConducted;
+    final isOnTrack = subject.isOnTrack;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    subject.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF283593),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isOnTrack
+                        ? Colors.green.shade100
+                        : Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${percentage.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isOnTrack
+                          ? Colors.green.shade700
+                          : Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: percentage / 100,
+              minHeight: 8,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                percentage >= subject.targetAttendancePercentage
+                    ? Colors.green
+                    : (percentage >= subject.targetAttendancePercentage * 0.8
+                          ? Colors.orange
+                          : Colors.red),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem('Total', total.toString(), Colors.blue),
+                _buildStatItem('Present', present.toString(), Colors.green),
+                _buildStatItem('Absent', absent.toString(), Colors.red),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildMarksBarChart(
+    List<Subject> subjects,
+    Map<String, List<Exam>> examsMap,
+  ) {
+    // Filter subjects that have marks data
+    final subjectsWithMarks = subjects.where((subject) {
+      final exams = examsMap[subject.id] ?? [];
+      return exams.isNotEmpty;
+    }).toList();
+
+    if (subjectsWithMarks.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              "No marks data available yet.\nAdd exams in the Marks tab!",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Prepare data for bar chart
+    final List<BarChartGroupData> barGroups = [];
+    final List<String> subjectNames = [];
+
+    for (int i = 0; i < subjectsWithMarks.length; i++) {
+      final subject = subjectsWithMarks[i];
+      final exams = examsMap[subject.id] ?? [];
+
+      // Calculate internal test average (best X of Y)
+      final internalTests = exams
+          .where((e) => e.type == ExamType.internal && e.marksObtained > 0)
+          .toList();
+      double internalAvg = 0.0;
+      if (internalTests.isNotEmpty && subject.bestITsToConsider > 0) {
+        internalTests.sort(
+          (a, b) => b.marksObtained.compareTo(a.marksObtained),
+        );
+        final bestITs = internalTests.take(subject.bestITsToConsider).toList();
+        final sum = bestITs.fold<double>(
+          0.0,
+          (prev, e) => prev + e.marksObtained,
+        );
+        internalAvg = (sum / bestITs.length).ceilToDouble();
+        if (internalAvg > subject.maxMarksPerIT)
+          internalAvg = subject.maxMarksPerIT;
+      }
+
+      // Get semester end exam marks
+      final semesterExam = exams.firstWhere(
+        (e) => e.type == ExamType.semester && e.marksObtained > 0,
+        orElse: () => Exam(
+          id: null,
+          name: '',
+          type: ExamType.semester,
+          maxMarks: 0,
+          marksObtained: 0,
+          date: DateTime.now(),
+        ),
+      );
+      final semesterMarks = semesterExam.marksObtained;
+
+      // Normalize to percentage for better visualization
+      final internalPercent = subject.maxMarksPerIT > 0
+          ? (internalAvg / subject.maxMarksPerIT * 100)
+          : 0.0;
+      final semesterPercent = subject.maxSemesterEndExam > 0
+          ? (semesterMarks / subject.maxSemesterEndExam * 100)
+          : 0.0;
+
+      subjectNames.add(
+        subject.name.length > 10
+            ? '${subject.name.substring(0, 10)}...'
+            : subject.name,
+      );
+
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: internalPercent,
+              color: Colors.blue,
+              width: 12,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
+            ),
+            BarChartRodData(
+              toY: semesterPercent,
+              color: Colors.purple,
+              width: 12,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📊 Marks per Subject",
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF283593),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLegendItem('Internal Tests', Colors.blue),
+                const SizedBox(width: 16),
+                _buildLegendItem('Semester End', Colors.purple),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 250,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: 100,
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (group) => Colors.grey[850]!,
+                      tooltipBorder: BorderSide(
+                        color: Colors.grey[700]!,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (value.toInt() >= 0 &&
+                              value.toInt() < subjectNames.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                subjectNames[value.toInt()],
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                  ),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: 20,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(color: Colors.grey[300]!, strokeWidth: 1);
+                    },
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: barGroups,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildDashboardContent() {
+    return StreamBuilder<List<Subject>>(
+      stream: _firestoreService.getSubjects(uid, widget.semesterName),
+      builder: (context, subjectsSnapshot) {
+        if (subjectsSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final subjects = subjectsSnapshot.data ?? [];
+
+        if (subjects.isEmpty) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildQuoteCard(),
+                const SizedBox(height: 20),
+                const Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        "No subjects found.\nAdd subjects in Timetable or Attendance tab!",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildQuoteCard(),
+              const SizedBox(height: 20),
+              const Text(
+                "📊 Attendance Summary",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF283593),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...subjects
+                  .map((subject) => _buildAttendanceCard(subject))
+                  .toList(),
+              const SizedBox(height: 20),
+              // Marks chart - use a custom widget that handles multiple streams
+              _buildMarksChartSection(subjects),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMarksChartSection(List<Subject> subjects) {
+    // Use a simpler approach: show chart with data as it becomes available
+    // For subjects with no exams, they'll show 0
+    return _MarksChartWidget(
+      subjects: subjects,
+      firestoreService: _firestoreService,
+      uid: uid,
+      semesterName: widget.semesterName,
+      buildChart: _buildMarksBarChart,
+    );
+  }
+
+  Widget _getBody() {
+    return _buildDashboardContent();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: Text(widget.semesterName),
+        title: Text(
+          widget.semesterName,
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF283593),
       ),
-      body: _pages[_selectedIndex],
+      body: _getBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF283593),
-        unselectedItemColor: Colors.grey,
-        items: _tabs
-            .map(
-              (tab) => BottomNavigationBarItem(
-                icon: Icon(tab["icon"]),
-                label: tab["label"],
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-}
-
-class DashboardTab extends StatelessWidget {
-  const DashboardTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "📊 Semester Overview",
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF283593),
-            ),
+        unselectedItemColor: const Color(0xFF616161),
+        type: BottomNavigationBarType.fixed,
+        onTap: _onTabTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: "Dashboard",
           ),
-          const SizedBox(height: 6),
-          const Text(
-            "\"Small daily improvements lead to big results.\"",
-            style: TextStyle(
-              fontSize: 16,
-              fontStyle: FontStyle.italic,
-              color: Colors.black54,
-            ),
+          BottomNavigationBarItem(icon: Icon(Icons.note_alt), label: "Notes"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.school),
+            label: "Attendance",
           ),
-          const SizedBox(height: 24),
-
-          // Attendance section
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Attendance",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                LinearProgressIndicator(
-                  value: 0.78, // example value
-                  backgroundColor: Colors.blue.shade100,
-                  color: Colors.blueAccent,
-                  minHeight: 10,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "78% present this semester",
-                  style: TextStyle(color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Progress graph (marks trend)
-          const Text(
-            "Marks Progress",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 16),
-          AspectRatio(
-            aspectRatio: 1.6,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: 100,
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 32,
-                      interval: 20,
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final labels = ["Sub1", "Sub2", "Sub3", "Sub4", "Sub5"];
-                        return Text(
-                          labels[value.toInt()],
-                          style: const TextStyle(fontSize: 12),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                gridData: FlGridData(show: true),
-                borderData: FlBorderData(show: false),
-                barGroups: [
-                  BarChartGroupData(
-                    x: 0,
-                    barRods: [BarChartRodData(toY: 85, color: Colors.green)],
-                  ),
-                  BarChartGroupData(
-                    x: 1,
-                    barRods: [BarChartRodData(toY: 72, color: Colors.green)],
-                  ),
-                  BarChartGroupData(
-                    x: 2,
-                    barRods: [BarChartRodData(toY: 91, color: Colors.green)],
-                  ),
-                  BarChartGroupData(
-                    x: 3,
-                    barRods: [BarChartRodData(toY: 64, color: Colors.green)],
-                  ),
-                  BarChartGroupData(
-                    x: 4,
-                    barRods: [BarChartRodData(toY: 78, color: Colors.green)],
-                  ),
-                ],
-              ),
-            ),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Marks"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.schedule),
+            label: "Timetable",
           ),
         ],
       ),
@@ -199,85 +820,54 @@ class DashboardTab extends StatelessWidget {
   }
 }
 
-class TimetableTab extends StatelessWidget {
-  const TimetableTab({super.key});
+// Helper widget to collect exams from multiple streams and display chart
+class _MarksChartWidget extends StatefulWidget {
+  final List<Subject> subjects;
+  final FirestoreService firestoreService;
+  final String uid;
+  final String semesterName;
+  final Widget Function(List<Subject>, Map<String, List<Exam>>) buildChart;
 
-  final List<Map<String, dynamic>> timetable = const [
-    {
-      "day": "Monday",
-      "classes": [
-        {"time": "9:00 AM", "subject": "Data Structures", "color": 0xFFBBDEFB},
-        {"time": "11:00 AM", "subject": "Maths", "color": 0xFFC8E6C9},
-        {
-          "time": "2:00 PM",
-          "subject": "Operating Systems",
-          "color": 0xFFFFF9C4,
-        },
-      ],
-    },
-    {
-      "day": "Tuesday",
-      "classes": [
-        {"time": "9:00 AM", "subject": "Python Lab", "color": 0xFFFFECB3},
-        {"time": "1:00 PM", "subject": "DBMS", "color": 0xFFDCEDC8},
-      ],
-    },
-    {
-      "day": "Wednesday",
-      "classes": [
-        {"time": "10:00 AM", "subject": "Data Science", "color": 0xFFE1BEE7},
-        {"time": "1:00 PM", "subject": "Maths", "color": 0xFFFFCDD2},
-      ],
-    },
-  ];
+  const _MarksChartWidget({
+    required this.subjects,
+    required this.firestoreService,
+    required this.uid,
+    required this.semesterName,
+    required this.buildChart,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: timetable.length,
-      itemBuilder: (context, index) {
-        final day = timetable[index];
-        return Card(
-          elevation: 3,
-          margin: const EdgeInsets.symmetric(vertical: 10),
-          child: ExpansionTile(
-            title: Text(
-              day["day"],
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF283593),
-              ),
-            ),
-            children: (day["classes"] as List).map<Widget>((cls) {
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Color(cls["color"]),
-                  radius: 8,
-                ),
-                title: Text(cls["subject"]),
-                subtitle: Text(cls["time"]),
-              );
-            }).toList(),
-          ),
-        );
-      },
-    );
-  }
+  State<_MarksChartWidget> createState() => _MarksChartWidgetState();
 }
 
-class PlaceholderTab extends StatelessWidget {
-  final String label;
-  const PlaceholderTab({super.key, required this.label});
+class _MarksChartWidgetState extends State<_MarksChartWidget> {
+  final Map<String, List<Exam>> examsMap = {};
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        "$label page coming soon!",
-        style: const TextStyle(fontSize: 18, color: Colors.grey),
-      ),
+    // Build stream builders for all subjects and collect data
+    return Column(
+      children: widget.subjects.map((subject) {
+        return StreamBuilder<List<Exam>>(
+          stream: widget.firestoreService.getExams(
+            widget.uid,
+            widget.semesterName,
+            subject.id!,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              examsMap[subject.id!] = snapshot.data ?? [];
+            }
+
+            // Show chart only for the last subject (after all streams have at least attempted)
+            if (subject == widget.subjects.last) {
+              return widget.buildChart(widget.subjects, examsMap);
+            }
+
+            return const SizedBox.shrink();
+          },
+        );
+      }).toList(),
     );
   }
 }
