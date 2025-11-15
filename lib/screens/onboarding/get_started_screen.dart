@@ -12,7 +12,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
@@ -25,14 +25,17 @@ class _GetStartedScreenState extends State<GetStartedScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+        curve: const Interval(0.0, 0.8, curve: Curves.easeIn),
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.2, 0.8, curve: Curves.elasticOut),
+        curve: const Interval(0.2, 0.8, curve: Curves.easeOut),
       ),
     );
 
@@ -47,51 +50,47 @@ class _GetStartedScreenState extends State<GetStartedScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final themeColor = theme.colorScheme.primary;
+    
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF283593),
-              const Color(0xFF00B0FF),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
+      backgroundColor: Colors.grey[100],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(),
+                const SizedBox(height: 40),
                 FadeTransition(
                   opacity: _fadeAnimation,
-                  child: ScaleTransition(
-                    scale: _scaleAnimation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, -0.2),
+                      end: Offset.zero,
+                    ).animate(_fadeAnimation),
                     child: Column(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: themeColor.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.school,
                             size: 80,
-                            color: Colors.white,
+                            color: themeColor,
                           ),
                         ),
                         const SizedBox(height: 32),
-                        const Text(
+                        Text(
                           'Student Sathi',
                           style: TextStyle(
-                            fontSize: 36,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
+                            color: themeColor,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -102,7 +101,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
-                              color: Colors.white70,
+                              color: Colors.black87,
                               height: 1.5,
                             ),
                           ),
@@ -111,7 +110,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                     ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 48),
                 FadeTransition(
                   opacity: _fadeAnimation,
                   child: Column(
@@ -128,27 +127,26 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF283593),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: themeColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            elevation: 4,
+                            elevation: 2,
                           ),
                           child: const Text(
                             'GET STARTED',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       Align(
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.center,
                         child: TextButton(
                           onPressed: () {
                             Navigator.pushReplacement(
@@ -159,7 +157,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                             );
                           },
                           style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
+                            foregroundColor: themeColor,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
@@ -168,14 +166,13 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.admin_panel_settings, size: 20),
-                              SizedBox(width: 8),
+                              Icon(Icons.admin_panel_settings, size: 18),
+                              SizedBox(width: 6),
                               Text(
                                 'ADMIN',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  letterSpacing: 1,
                                 ),
                               ),
                             ],
@@ -185,7 +182,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 40),
               ],
             ),
           ),

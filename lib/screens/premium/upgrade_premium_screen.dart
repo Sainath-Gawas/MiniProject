@@ -116,10 +116,11 @@ class UpgradePremiumScreen extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF283593),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    elevation: 2,
                   ),
                   child: const Text(
                     'Upgrade to Premium',
@@ -136,8 +137,8 @@ class UpgradePremiumScreen extends StatelessWidget {
 
   Widget _buildComparisonTable() {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -154,6 +155,7 @@ class UpgradePremiumScreen extends StatelessWidget {
             _buildFeatureRow('Attendance Heatmap', '✗', '✓'),
             _buildFeatureRow('Smooth Animations', '✗', '✓'),
             _buildFeatureRow('All UI Themes', '✗', '✓'),
+            _buildFeatureRow('AI Assistant SATHI', '❌ Not available', '✔ Available'),
           ],
         ),
       ),

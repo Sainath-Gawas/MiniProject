@@ -10,6 +10,7 @@ import '../attendance/attendance_notification_handler.dart';
 import '../settings/settings_screen.dart';
 import '../premium/upgrade_premium_screen.dart';
 import '../chatbot/chatbot_screen.dart';
+import '../sathi/sathi_chat_screen.dart';
 import '../../widgets/premium_badge.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -175,7 +176,13 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Expanded(child: Text("Hello, $userName 👋")),
+            Expanded(
+              child: Text(
+                "Hello, $userName 👋",
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             const PremiumBadge(),
           ],
         ),
@@ -255,14 +262,46 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const SizedBox.shrink();
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.chat_bubble_outline),
-                title: const Text("Chatbot"),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ChatbotScreen()),
+              StreamBuilder<bool>(
+                stream: _firestoreService.getUserPremiumStatus(currentUser!.uid),
+                builder: (context, premiumSnapshot) {
+                  final isPremium = premiumSnapshot.data ?? false;
+                  return ListTile(
+                    leading: Icon(
+                      Icons.smart_toy,
+                      color: isPremium ? Colors.amber : Colors.grey,
+                    ),
+                    title: Text(
+                      isPremium ? "SATHI Assistant" : "SATHI Assistant (Premium)",
+                      style: TextStyle(
+                        color: isPremium ? null : Colors.grey,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isPremium) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SathiChatScreen()),
+                        );
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Premium Feature'),
+                            content: const Text(
+                              'SATHI Assistant is a premium feature.\nContact admin to upgrade your plan.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
                   );
                 },
               ),
@@ -454,6 +493,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+      floatingActionButton: StreamBuilder<bool>(
+        stream: _firestoreService.getUserPremiumStatus(currentUser?.uid ?? 'guest_user'),
+        builder: (context, snapshot) {
+          final isPremium = snapshot.data ?? false;
+          if (!isPremium || isGuest) return const SizedBox.shrink();
+          
+          return FloatingActionButton.extended(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SathiChatScreen()),
+              );
+            },
+            backgroundColor: Colors.amber.shade600,
+            icon: const Icon(Icons.smart_toy, color: Colors.white),
+            label: const Text(
+              'Chat with SATHI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          );
+        },
+      ),
     );
   }
 }

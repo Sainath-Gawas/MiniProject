@@ -16,6 +16,7 @@ import '/models/attendance_model.dart';
 import '/models/gpa_scale_model.dart';
 import '/services/firestore_service.dart';
 import '../../screens/premium/upgrade_premium_screen.dart';
+import '../../screens/sathi/sathi_chat_screen.dart';
 import '../../widgets/premium_badge.dart';
 
 class SemesterDashboardScreen extends StatefulWidget {
@@ -320,8 +321,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
 
   Widget _buildQuoteCard() {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -330,12 +331,15 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "💬 Quote of the Day",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF283593),
+                const Expanded(
+                  child: Text(
+                    "💬 Quote of the Day",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF283593),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
@@ -389,8 +393,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
     final isOnTrack = subject.isOnTrack;
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -587,10 +591,10 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
     }
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -795,8 +799,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
 
   Widget _buildPremiumCTACard() {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -810,16 +814,20 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.star, color: Colors.amber, size: 28),
-                SizedBox(width: 8),
-                Text(
-                  "Unlock full analytics with Student Sathi Premium",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                const Icon(Icons.star, color: Colors.amber, size: 28),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Unlock full analytics with Student Sathi Premium",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -835,6 +843,7 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
             _buildFeatureItem("Internal vs external distribution charts"),
             _buildFeatureItem("Attendance heatmap"),
             _buildFeatureItem("Smooth animations & rich UI"),
+            _buildFeatureItem("AI Assistant SATHI"),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -850,10 +859,11 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF283593),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
+                  elevation: 2,
                 ),
                 child: const Text(
                   "Upgrade",
@@ -913,8 +923,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
       builder: (context, subjectsSnapshot) {
         if (!subjectsSnapshot.hasData || subjectsSnapshot.data!.isEmpty) {
           return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 1,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -958,8 +968,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
 
   Widget _buildSubjectWiseAnalysisCard(List<Subject> subjects) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -988,8 +998,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
 
   Widget _buildInternalExternalChart(List<Subject> subjects) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1040,14 +1050,38 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
               child: Text(
                 widget.semesterName,
                 style: const TextStyle(color: Colors.white),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
             const PremiumBadge(),
           ],
         ),
         backgroundColor: const Color(0xFF283593),
       ),
       body: _getBody(),
+      floatingActionButton: StreamBuilder<bool>(
+        stream: _firestoreService.getUserPremiumStatus(uid),
+        builder: (context, snapshot) {
+          final isPremium = snapshot.data ?? false;
+          if (!isPremium || uid == 'guest_user') return const SizedBox.shrink();
+          
+          return FloatingActionButton.extended(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SathiChatScreen()),
+              );
+            },
+            backgroundColor: Colors.amber.shade600,
+            icon: const Icon(Icons.smart_toy, color: Colors.white),
+            label: const Text(
+              'Chat with SATHI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          );
+        },
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: const Color(0xFF283593),
@@ -1152,10 +1186,10 @@ class _GPATrendChartWidgetState extends State<_GPATrendChartWidget> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1330,7 +1364,7 @@ class _SubjectMarksChartWidgetState extends State<_SubjectMarksChartWidget> {
               final hasData = examsMap.values.any((exams) => exams.isNotEmpty);
               if (!hasData) {
                 return const Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(18),
                   child: Text(
                     "No data available. Add exams and marks to view analytics.",
                     textAlign: TextAlign.center,
