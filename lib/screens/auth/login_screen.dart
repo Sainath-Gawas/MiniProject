@@ -53,6 +53,13 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(builder: (_) => const AdminPanel()),
           );
         }
+      } else if (email.toLowerCase() == 'sag1@gmail.com' && password == 'sag@123') {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminPanel()),
+          );
+        }
       } else {
         // ---------- Normal user login ----------
         final user = await _auth.signInWithEmail(email, password);
