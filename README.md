@@ -1,16 +1,70 @@
-# edutrack
+# Student Sathi - Mini Project
 
-A new Flutter project.
+**Student Sathi** is a Flutter-based mobile app designed to help college students manage their academic activities in a simple and organized way. The app provides features like notes management, attendance tracking,marks tracking, semester organization and a premium AI assistant (SATHI) for enhanced productivity.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+**Features**
 
-A few resources to get you started if this is your first Flutter project:
+### Authentication
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Email/password login
+- Google sign-in
+- Guest login
+- Admin login for management
+- Password reset functionality
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Semester Management
+
+- Add and manage semesters
+- Navigate to semester dashboard
+
+### Notes Screen
+
+- Create, read, update, and delete notes
+- Notes grouped by subject
+- Firestore sync for persistent storage
+
+### Attendance screen
+
+- Mark and track attendance per subject
+- Attendance pop ups for premium users to log attendance
+- Guest mode supports temporary data storage
+
+### Timetable screen
+
+- Lets user set weekly timetable
+- gets pop ups for premium users to log attendance
+- Guest mode supports temporary data storage
+
+### Marks screen
+
+- Mark and track marks per subject in different exams
+- Helps configure subjects exams
+- calculate and display overall marks and percentage according to Cofiguration
+- Guest mode supports temporary data storage
+
+### Dashboard
+
+- Displays a quote
+- View overall academic data summary & visuals
+- Bottom tabs for attendance,marks,notes,timetable
+
+### Sathi Assistant
+
+- Using gemini 2.5 flash api
+- Helps user understand features of app
+- Motivates user
+- Gives basic tips and guidance
+
+### Premium Features
+
+- SATHI Assistant (AI assistant)
+- Premium badge for subscribed users
+- Advanced analytics
+- GPA charts
+
+### Admin Panel
+
+- Admin-specific access for managing app data
+- Allows admins to toggle users as Free or VIP
