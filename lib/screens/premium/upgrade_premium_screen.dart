@@ -97,32 +97,22 @@ class UpgradePremiumScreen extends StatelessWidget {
                 _buildComparisonTable(),
                 const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await _firestoreService.upgradeToPremium(uid);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Successfully upgraded to Premium! 🎉'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 2),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Admin Approval Required'),
+                        content: const Text(
+                          'Premium upgrade requires admin approval. Please contact admin to activate Premium.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
                           ),
-                        );
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => const HomeScreen()),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
+                        ],
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF283593),

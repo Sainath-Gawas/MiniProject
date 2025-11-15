@@ -6,7 +6,8 @@ import '../auth/reset_password_screen.dart';
 import '../admin/admin_panel.dart'; // Import AdminPanel
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool isAdminLoginIntent;
+  const LoginScreen({super.key, this.isAdminLoginIntent = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();

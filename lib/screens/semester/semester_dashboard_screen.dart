@@ -13,8 +13,10 @@ import '/models/subject_model.dart';
 import '/models/exam_model.dart';
 import '/models/timetable_model.dart';
 import '/models/attendance_model.dart';
+import '/models/gpa_scale_model.dart';
 import '/services/firestore_service.dart';
 import '../../screens/premium/upgrade_premium_screen.dart';
+import '../../widgets/premium_badge.dart';
 
 class SemesterDashboardScreen extends StatefulWidget {
   final String semesterName;
@@ -906,36 +908,51 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
   }
 
   Widget _buildGPATrendCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "📈 GPA Trend",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF283593),
+    return StreamBuilder<List<Subject>>(
+      stream: _firestoreService.getSubjects(uid, widget.semesterName),
+      builder: (context, subjectsSnapshot) {
+        if (!subjectsSnapshot.hasData || subjectsSnapshot.data!.isEmpty) {
+          return Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "📈 GPA Trend",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF283593),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Text(
+                        "No data available. Add exams and marks to view analytics.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: Center(
-                child: Text(
-                  "GPA trend visualization\n(Coming soon)",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          );
+        }
+
+        final subjects = subjectsSnapshot.data!;
+        return _GPATrendChartWidget(
+          subjects: subjects,
+          firestoreService: _firestoreService,
+          uid: uid,
+          semesterName: widget.semesterName,
+        );
+      },
     );
   }
 
@@ -949,7 +966,7 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "📊 Subject-wise Analysis",
+              "📊 Subject-wise Marks Analysis",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -957,24 +974,12 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            ...subjects.take(3).map((subject) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(subject.name)),
-                      Text(
-                        "${subject.currentAttendancePercentage.toStringAsFixed(1)}%",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                )),
-            if (subjects.length > 3)
-              Text(
-                "+ ${subjects.length - 3} more subjects",
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
+            _SubjectMarksChartWidget(
+              subjects: subjects,
+              firestoreService: _firestoreService,
+              uid: uid,
+              semesterName: widget.semesterName,
+            ),
           ],
         ),
       ),
@@ -991,7 +996,7 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "🥧 Internal vs External Distribution",
+              "🥧 Attendance Distribution",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -999,15 +1004,8 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: Center(
-                child: Text(
-                  "Pie chart visualization\n(Coming soon)",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
+            _AttendancePieChartWidget(
+              subjects: subjects,
             ),
           ],
         ),
@@ -1036,9 +1034,16 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: Text(
-          widget.semesterName,
-          style: const TextStyle(color: Colors.white),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.semesterName,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            const PremiumBadge(),
+          ],
         ),
         backgroundColor: const Color(0xFF283593),
       ),
@@ -1118,6 +1123,357 @@ class _MarksChartWidgetState extends State<_MarksChartWidget> {
           },
         );
       }).toList(),
+    );
+  }
+}
+
+// GPA Trend Chart Widget
+class _GPATrendChartWidget extends StatefulWidget {
+  final List<Subject> subjects;
+  final FirestoreService firestoreService;
+  final String uid;
+  final String semesterName;
+
+  const _GPATrendChartWidget({
+    required this.subjects,
+    required this.firestoreService,
+    required this.uid,
+    required this.semesterName,
+  });
+
+  @override
+  State<_GPATrendChartWidget> createState() => _GPATrendChartWidgetState();
+}
+
+class _GPATrendChartWidgetState extends State<_GPATrendChartWidget> {
+  final Map<String, List<Exam>> examsMap = {};
+  final gpaScale = GPAScale.defaultScale();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📈 Subject-wise GPA",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF283593),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 250,
+              child: Column(
+                children: widget.subjects.map((subject) {
+                  return StreamBuilder<List<Exam>>(
+                    stream: widget.firestoreService.getExams(
+                      widget.uid,
+                      widget.semesterName,
+                      subject.id!,
+                    ),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        examsMap[subject.id!] = snapshot.data ?? [];
+                      }
+                      
+                      final exams = examsMap[subject.id!] ?? [];
+                      final percentage = subject.calculateOverallSubjectPercentage(exams);
+                      final gpa = percentage > 0 ? gpaScale.getGPA(percentage) : 0.0;
+                      
+                      if (subject == widget.subjects.last) {
+                        final hasData = examsMap.values.any((exams) => exams.isNotEmpty);
+                        if (!hasData) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text(
+                                "No data available. Add exams and marks to view analytics.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          );
+                        }
+                        
+                        final gpaData = widget.subjects.map((s) {
+                          final sExams = examsMap[s.id!] ?? [];
+                          final sPercentage = s.calculateOverallSubjectPercentage(sExams);
+                          return {
+                            'name': s.name.length > 10 ? '${s.name.substring(0, 10)}...' : s.name,
+                            'gpa': sPercentage > 0 ? gpaScale.getGPA(sPercentage) : 0.0,
+                          };
+                        }).toList();
+                        
+                        return Expanded(
+                          child: BarChart(
+                            BarChartData(
+                              alignment: BarChartAlignment.spaceAround,
+                              maxY: 10,
+                              barTouchData: BarTouchData(enabled: true),
+                              titlesData: FlTitlesData(
+                                show: true,
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      if (value.toInt() >= 0 && value.toInt() < gpaData.length) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            gpaData[value.toInt()]['name'] as String,
+                                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                          ),
+                                        );
+                                      }
+                                      return const Text('');
+                                    },
+                                    reservedSize: 40,
+                                  ),
+                                ),
+                                leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      return Text(
+                                        value.toInt().toString(),
+                                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                      );
+                                    },
+                                    reservedSize: 30,
+                                  ),
+                                ),
+                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              ),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: false,
+                                getDrawingHorizontalLine: (value) {
+                                  return FlLine(color: Colors.grey[300]!, strokeWidth: 1);
+                                },
+                              ),
+                              borderData: FlBorderData(show: false),
+                              barGroups: gpaData.asMap().entries.map((entry) {
+                                return BarChartGroupData(
+                                  x: entry.key,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: entry.value['gpa'] as double,
+                                      color: const Color(0xFF283593),
+                                      width: 16,
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Subject Marks Chart Widget
+class _SubjectMarksChartWidget extends StatefulWidget {
+  final List<Subject> subjects;
+  final FirestoreService firestoreService;
+  final String uid;
+  final String semesterName;
+
+  const _SubjectMarksChartWidget({
+    required this.subjects,
+    required this.firestoreService,
+    required this.uid,
+    required this.semesterName,
+  });
+
+  @override
+  State<_SubjectMarksChartWidget> createState() => _SubjectMarksChartWidgetState();
+}
+
+class _SubjectMarksChartWidgetState extends State<_SubjectMarksChartWidget> {
+  final Map<String, List<Exam>> examsMap = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: widget.subjects.map((subject) {
+        return StreamBuilder<List<Exam>>(
+          stream: widget.firestoreService.getExams(
+            widget.uid,
+            widget.semesterName,
+            subject.id!,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              examsMap[subject.id!] = snapshot.data ?? [];
+            }
+            
+            if (subject == widget.subjects.last) {
+              final hasData = examsMap.values.any((exams) => exams.isNotEmpty);
+              if (!hasData) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    "No data available. Add exams and marks to view analytics.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                );
+              }
+              
+              return SizedBox(
+                height: 300,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: 100,
+                    barTouchData: BarTouchData(enabled: true),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            if (value.toInt() >= 0 && value.toInt() < widget.subjects.length) {
+                              final subj = widget.subjects[value.toInt()];
+                              final name = subj.name.length > 8 ? '${subj.name.substring(0, 8)}...' : subj.name;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                              );
+                            }
+                            return const Text('');
+                          },
+                          reservedSize: 40,
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              '${value.toInt()}%',
+                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            );
+                          },
+                          reservedSize: 40,
+                        ),
+                      ),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(color: Colors.grey[300]!, strokeWidth: 1);
+                      },
+                    ),
+                    borderData: FlBorderData(show: false),
+                    barGroups: widget.subjects.asMap().entries.map((entry) {
+                      final exams = examsMap[entry.value.id!] ?? [];
+                      final percentage = entry.value.calculateOverallSubjectPercentage(exams);
+                      return BarChartGroupData(
+                        x: entry.key,
+                        barRods: [
+                          BarChartRodData(
+                            toY: percentage,
+                            color: const Color(0xFF283593),
+                            width: 20,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        );
+      }).toList(),
+    );
+  }
+}
+
+// Attendance Pie Chart Widget
+class _AttendancePieChartWidget extends StatelessWidget {
+  final List<Subject> subjects;
+
+  const _AttendancePieChartWidget({required this.subjects});
+
+  @override
+  Widget build(BuildContext context) {
+    int totalPresent = 0;
+    int totalAbsent = 0;
+    
+    for (var subject in subjects) {
+      totalPresent += subject.classesAttended;
+      totalAbsent += subject.classesMissed;
+    }
+    
+    final total = totalPresent + totalAbsent;
+    
+    if (total == 0) {
+      return SizedBox(
+        height: 200,
+        child: Center(
+          child: Text(
+            "No data available. Add attendance records to view analytics.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
+    
+    final presentPercent = (totalPresent / total * 100);
+    final absentPercent = (totalAbsent / total * 100);
+    
+    return SizedBox(
+      height: 250,
+      child: PieChart(
+        PieChartData(
+          sections: [
+            PieChartSectionData(
+              value: presentPercent,
+              title: '${presentPercent.toStringAsFixed(1)}%',
+              color: Colors.green,
+              radius: 80,
+            ),
+            PieChartSectionData(
+              value: absentPercent,
+              title: '${absentPercent.toStringAsFixed(1)}%',
+              color: Colors.red,
+              radius: 80,
+            ),
+          ],
+          sectionsSpace: 2,
+          centerSpaceRadius: 40,
+        ),
+      ),
     );
   }
 }

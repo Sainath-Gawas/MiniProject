@@ -10,6 +10,7 @@ import '../attendance/attendance_notification_handler.dart';
 import '../settings/settings_screen.dart';
 import '../premium/upgrade_premium_screen.dart';
 import '../chatbot/chatbot_screen.dart';
+import '../../widgets/premium_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -172,7 +173,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Hello, $userName 👋"),
+        title: Row(
+          children: [
+            Expanded(child: Text("Hello, $userName 👋")),
+            const PremiumBadge(),
+          ],
+        ),
         actions: [
           if (!isGuest)
             IconButton(
@@ -281,26 +287,35 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Row(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline, color: Colors.amber),
-                          SizedBox(width: 8),
-                          Text(
-                            "Sign up to save your data permanently",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          const Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Sign up to save your data permanently",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         "Your data will be lost if you don't sign up. Create an account to keep your progress safe.",
-                        style: TextStyle(fontSize: 12, color: Colors.black87),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
+                        ),
+                        textAlign: TextAlign.start,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -315,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF283593),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           child: const Text("Sign Up Now"),
                         ),
@@ -353,41 +369,54 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Row(
+                                Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.info_outline, color: Colors.amber),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "Sign up to save your data permanently",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                    const Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "Sign up to save your data permanently",
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                const Text(
+                                Text(
                                   "Your data will be lost if you don't sign up. Create an account to keep your progress safe.",
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LoginScreen(),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF283593),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const LoginScreen(),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF283593),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                    child: const Text("Sign Up Now"),
                                   ),
-                                  child: const Text("Sign Up Now"),
                                 ),
                               ],
                             ),

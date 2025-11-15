@@ -3,8 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/onboarding/get_started_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/firestore_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,21 +14,21 @@ void main() async {
   runApp(const MyApp());
 }
 
+Future<bool> _checkIfFirstLaunch() async {
+  final prefs = await SharedPreferences.getInstance();
+  final hasLaunched = prefs.getBool('has_launched') ?? false;
+  if (!hasLaunched) {
+    await prefs.setBool('has_launched', true);
+    return true;
+  }
+  return false;
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   ThemeData _getTheme(String uiMode) {
     switch (uiMode) {
-      case 'dark':
-        return ThemeData(
-          primarySwatch: Colors.indigo,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: Colors.grey[900],
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF283593),
-            foregroundColor: Colors.white,
-          ),
-        );
       case 'focus':
         return ThemeData(
           primarySwatch: Colors.indigo,
@@ -40,20 +42,48 @@ class MyApp extends StatelessWidget {
             seedColor: const Color(0xFF4A148C),
             brightness: Brightness.light,
           ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.black87),
+            bodyMedium: TextStyle(color: Colors.black87),
+            bodySmall: TextStyle(color: Colors.black87),
+          ),
         );
-      case 'amoled':
+      case 'live':
         return ThemeData(
-          primarySwatch: Colors.indigo,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: Colors.black,
+          primarySwatch: Colors.green,
+          primaryColor: const Color(0xFF00C853),
+          scaffoldBackgroundColor: const Color(0xFFE8F5E9),
           appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.black,
+            backgroundColor: Color(0xFF00C853),
             foregroundColor: Colors.white,
           ),
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFF283593),
-            surface: Colors.black,
-            background: Colors.black,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF00C853),
+            brightness: Brightness.light,
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.black87),
+            bodyMedium: TextStyle(color: Colors.black87),
+            bodySmall: TextStyle(color: Colors.black87),
+          ),
+        );
+      case 'gradient':
+        return ThemeData(
+          primarySwatch: Colors.blue,
+          primaryColor: const Color(0xFF2196F3),
+          scaffoldBackgroundColor: const Color(0xFFE3F2FD),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF2196F3),
+            foregroundColor: Colors.white,
+          ),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2196F3),
+            brightness: Brightness.light,
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.black87),
+            bodyMedium: TextStyle(color: Colors.black87),
+            bodySmall: TextStyle(color: Colors.black87),
           ),
         );
       case 'light':
@@ -65,6 +95,11 @@ class MyApp extends StatelessWidget {
           appBarTheme: const AppBarTheme(
             backgroundColor: Color(0xFF283593),
             foregroundColor: Colors.white,
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.black87),
+            bodyMedium: TextStyle(color: Colors.black87),
+            bodySmall: TextStyle(color: Colors.black87),
           ),
         );
     }
@@ -99,7 +134,18 @@ class MyApp extends StatelessWidget {
                     if (snapshot.hasData) {
                       return const HomeScreen(); // User logged in
                     } else {
-                      return const LoginScreen(); // User not logged in
+                      return FutureBuilder<bool>(
+                        future: _checkIfFirstLaunch(),
+                        builder: (context, firstLaunchSnapshot) {
+                          if (firstLaunchSnapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (firstLaunchSnapshot.data == true) {
+                            return const GetStartedScreen();
+                          }
+                          return const LoginScreen();
+                        },
+                      );
                     }
                   }
                   return const Center(child: CircularProgressIndicator());

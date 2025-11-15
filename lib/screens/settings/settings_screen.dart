@@ -58,11 +58,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 16),
               _buildThemeOption('Light', 'light', currentUiMode, Icons.light_mode),
               const SizedBox(height: 8),
-              _buildThemeOption('Dark', 'dark', currentUiMode, Icons.dark_mode),
-              const SizedBox(height: 8),
               _buildThemeOption('Focus Mode', 'focus', currentUiMode, Icons.center_focus_strong),
               const SizedBox(height: 8),
-              _buildThemeOption('AMOLED Black', 'amoled', currentUiMode, Icons.brightness_2),
+              _buildThemeOption('Live Theme', 'live', currentUiMode, Icons.wb_sunny),
+              const SizedBox(height: 8),
+              _buildThemeOption('Gradient Theme', 'gradient', currentUiMode, Icons.gradient),
             ],
           );
         },
@@ -114,4 +114,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
 
