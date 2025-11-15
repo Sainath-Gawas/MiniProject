@@ -9,7 +9,6 @@ import '../../services/attendance_reminder_service.dart';
 import '../attendance/attendance_notification_handler.dart';
 import '../settings/settings_screen.dart';
 import '../premium/upgrade_premium_screen.dart';
-import '../chatbot/chatbot_screen.dart';
 import '../sathi/sathi_chat_screen.dart';
 import '../../widgets/premium_badge.dart';
 

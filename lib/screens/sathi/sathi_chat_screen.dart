@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '/services/sathi_ai_service.dart';
 
 class SathiChatScreen extends StatefulWidget {
   const SathiChatScreen({super.key});
@@ -11,12 +12,14 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  final SathiAIService _aiService = SathiAIService();
+
   bool _isTyping = false;
 
   @override
   void initState() {
     super.initState();
-    // Add welcome message
+    // Show welcome message on first load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _addWelcomeMessage();
     });
@@ -24,11 +27,16 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
 
   void _addWelcomeMessage() {
     setState(() {
-      _messages.add(ChatMessage(
-        text: "Hi! I'm SATHI, your friendly study assistant! 👋\n\nOnce you connect the API, I'll help you with your studies, answer questions, and guide you through your academic journey.\n\nFeel free to ask me anything!",
-        isUser: false,
-        isWelcome: true,
-      ));
+      _messages.add(
+        ChatMessage(
+          text:
+              "Hi! I'm SATHI, your friendly study assistant! 👋\n\n"
+              "I can guide you on app features, marks, attendance, notes, and even give you motivational tips if needed.\n\n"
+              "Feel free to ask me anything related to your studies!",
+          isUser: false,
+          isWelcome: true,
+        ),
+      );
     });
     _scrollToBottom();
   }
@@ -45,17 +53,21 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Simulate typing delay
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      final aiReply = await _aiService.sendMessage(text);
 
-    // Static response for now
-    setState(() {
-      _messages.add(ChatMessage(
-        text: "SATHI here! Once you connect API, I'll help you with studies. This is a placeholder response - the real AI will be connected soon! 😊",
-        isUser: false,
-      ));
-      _isTyping = false;
-    });
+      setState(() {
+        _messages.add(ChatMessage(text: aiReply, isUser: false));
+        _isTyping = false;
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(text: "Oops! Something went wrong 😅", isUser: false),
+        );
+        _isTyping = false;
+      });
+    }
 
     _scrollToBottom();
   }
@@ -82,7 +94,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -105,7 +117,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
                 ],
               ),
               child: Icon(
-                Icons.smart_toy,
+                Icons.book_rounded,
                 color: Colors.amber.shade700,
                 size: 20,
               ),
@@ -113,10 +125,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
             const SizedBox(width: 12),
             const Text(
               'SATHI Assistant',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -127,10 +136,13 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
         children: [
           Expanded(
             child: _messages.isEmpty
-                ? _buildEmptyState()
+                ? _buildEmptyState(theme)
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     itemCount: _messages.length + (_isTyping ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _messages.length && _isTyping) {
@@ -147,12 +159,11 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(ThemeData theme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Mascot illustration
           Container(
             width: 120,
             height: 120,
@@ -162,7 +173,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
               border: Border.all(color: Colors.amber.shade200, width: 3),
             ),
             child: Icon(
-              Icons.smart_toy,
+              Icons.book_rounded,
               size: 60,
               color: Colors.amber.shade600,
             ),
@@ -173,7 +184,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyLarge?.color,
+              color: theme.textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 12),
@@ -184,7 +195,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
-                color: Theme.of(context).textTheme.bodyMedium?.color,
+                color: theme.textTheme.bodyMedium?.color,
                 height: 1.5,
               ),
             ),
@@ -196,11 +207,13 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
 
   Widget _buildMessageBubble(ChatMessage message, ThemeData theme) {
     final isUser = message.isUser;
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser && message.isWelcome) ...[
@@ -213,7 +226,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
                 border: Border.all(color: Colors.amber.shade300, width: 1.5),
               ),
               child: Icon(
-                Icons.smart_toy,
+                Icons.book_rounded,
                 color: Colors.amber.shade700,
                 size: 18,
               ),
@@ -225,10 +238,10 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? (theme.colorScheme.primary)
+                    ? theme.colorScheme.primary
                     : (theme.brightness == Brightness.dark
-                        ? Colors.grey[800]
-                        : Colors.grey[100]),
+                          ? Colors.grey[800]
+                          : Colors.grey[100]),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
@@ -275,7 +288,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
               border: Border.all(color: Colors.amber.shade300, width: 1.5),
             ),
             child: Icon(
-              Icons.smart_toy,
+              Icons.book_rounded,
               color: Colors.amber.shade700,
               size: 18,
             ),
@@ -317,7 +330,9 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
         final delay = index * 0.2;
         final animationValue = ((value + delay) % 1.0);
         return Opacity(
-          opacity: animationValue < 0.5 ? animationValue * 2 : 2 - (animationValue * 2),
+          opacity: animationValue < 0.5
+              ? animationValue * 2
+              : 2 - (animationValue * 2),
           child: Container(
             width: 8,
             height: 8,
@@ -364,10 +379,7 @@ class _SathiChatScreenState extends State<SathiChatScreen> {
                     horizontal: 20,
                     vertical: 12,
                   ),
-                  hintStyle: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 15,
-                  ),
+                  hintStyle: TextStyle(color: Colors.grey[500], fontSize: 15),
                 ),
                 style: TextStyle(
                   color: theme.textTheme.bodyLarge?.color,
@@ -425,4 +437,3 @@ class ChatMessage {
     this.isWelcome = false,
   });
 }
-

@@ -1073,10 +1073,10 @@ class _SemesterDashboardScreenState extends State<SemesterDashboardScreen> {
                 MaterialPageRoute(builder: (_) => const SathiChatScreen()),
               );
             },
-            backgroundColor: Colors.amber.shade600,
-            icon: const Icon(Icons.smart_toy, color: Colors.white),
+            backgroundColor: const Color.fromARGB(255, 246, 174, 5),
+            icon: const Icon(Icons.book_rounded, color: Colors.white),
             label: const Text(
-              'Chat with SATHI',
+              'SATHI',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           );
